@@ -1,0 +1,797 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>QuantumHash - Conexão Hash, NFT e Arbitrage</title>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap" />
+  <style>
+    /* Reset e estilos base */
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: "Inter", sans-serif;
+      background: #000;
+      color: #c5c6c7;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: row;
+      position: relative;
+      overflow: hidden;
+    }
+    /* Canvas 2D – usado apenas para tooltips (não é a simulação principal) */
+    #bgCanvas {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      z-index: -1;
+    }
+    /* Container da cena 3D – este é o “recipiente” principal */
+    #threeContainer {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      display: none; /* Inicialmente, oculto; será exibido ao escolher QuantumNFT */
+      z-index: 1;
+    }
+    /* Sidebar com botões e painel de detalhes */
+    .sidebar {
+      width: 350px;
+      padding: 20px;
+      background: rgba(11,12,16,0.85);
+      border-right: 1px solid #1f2833;
+      box-shadow: 2px 0 20px rgba(102,252,241,0.2);
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-start;
+      align-items: flex-start;
+      z-index: 10;
+    }
+    .sidebar h1 { font-size: 26px; color: #66fcf1; margin-bottom: 15px; }
+    .sidebar p { margin-bottom: 15px; line-height: 1.5; }
+    .sidebar strong { color: #66fcf1; }
+    .scenario-buttons {
+      margin-top: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      width: 100%;
+    }
+    .scenario-buttons button {
+      padding: 10px;
+      width: 100%;
+      border: none;
+      border-radius: 5px;
+      background: #66fcf1;
+      color: #0b0c10;
+      font-size: 16px;
+      cursor: pointer;
+      transition: background 0.3s ease;
+    }
+    .scenario-buttons button:hover { background: #52d6d8; }
+    /* Painel para exibir informações detalhadas dos NFTs */
+    #nftDetails {
+      margin-top: 20px;
+      padding: 10px;
+      background: rgba(0,0,0,0.5);
+      border: 1px solid #66fcf1;
+      border-radius: 5px;
+      max-height: 200px;
+      overflow-y: auto;
+      width: 100%;
+      color: #66fcf1;
+      font-size: 14px;
+      display: none;
+    }
+    /* Tooltip para simulação 2D */
+    #tooltip {
+      position: absolute;
+      background: rgba(0,0,0,0.8);
+      color: #fff;
+      padding: 5px 10px;
+      border-radius: 5px;
+      font-size: 12px;
+      pointer-events: none;
+      display: none;
+      z-index: 20;
+    }
+  </style>
+</head>
+<body>
+  <!-- Canvas 2D (para tooltips) -->
+  <canvas id="bgCanvas"></canvas>
+  <!-- Container da cena 3D -->
+  <div id="threeContainer"></div>
+  <!-- Tooltip 2D -->
+  <div id="tooltip"></div>
+  <!-- Sidebar com botões e painel de informações -->
+  <div class="sidebar">
+    <h1>QuantumHash, NFT &amp; Arbitrage</h1>
+    <p>
+      O <strong>QuantumHash</strong> garante imutabilidade e mutabilidade controlada no ecossistema quântico.
+    </p>
+    <p>
+      O <strong>QuantumNFT</strong> mantém hashes sincronizados, criando NFTs dinâmicos.
+    </p>
+    <p>
+      O <strong>QuantumArbitrage</strong> ajusta estratégias em tempo real usando tecnologia quântica.
+    </p>
+    <div class="scenario-buttons">
+      <button id="btnHash">QuantumHash</button>
+      <button id="btnNFT">QuantumNFT</button>
+      <button id="btnArb">QuantumArbitrage</button>
+      <button id="btnInfo">Exibir Informações dos NFTs</button>
+      <button id="btnAction">Inverter Velocidades</button>
+    </div>
+    <div id="nftDetails"></div>
+  </div>
+
+  <!-- Three.js Library -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three/examples/js/controls/OrbitControls.js"></script>
+  <script>
+    document.addEventListener("DOMContentLoaded", () => {
+      /************************************
+       * CONFIGURAÇÃO DA SIMULAÇÃO 2D (para tooltips)
+       ************************************/
+      const bgCanvas = document.getElementById("bgCanvas");
+      const bgCtx = bgCanvas.getContext("2d");
+      const tooltipElem = document.getElementById("tooltip");
+
+      function resizeCanvas() {
+        bgCanvas.width = window.innerWidth;
+        bgCanvas.height = window.innerHeight;
+      }
+      resizeCanvas();
+      window.addEventListener("resize", resizeCanvas);
+
+      const config = {
+        particleCount: 100,
+        particleSpeed: 0.2,
+        maxSize: 5,
+        minSize: 1,
+        minLife: 2000,
+        maxLife: 4000,
+        connectionDistance: 60,
+        fusionDistance: 20,
+      };
+
+      const scenarioConfigs = {
+        "QuantumHash": { r: 100, g: 149, b: 237, particleSpeed: 0.2, connectionDistance: 60, fusionDistance: 20 },
+        "QuantumNFT": { r: 255, g: 255, b: 255, particleSpeed: 0.15, connectionDistance: 80, fusionDistance: 25 },
+        "QuantumArbitrage": { r: 220, g: 220, b: 255, particleSpeed: 0.3, connectionDistance: 50, fusionDistance: 15 }
+      };
+
+      let forcedScenario = null;
+      const systems = ["QuantumHash", "QuantumNFT", "QuantumArbitrage"];
+
+      // Classe para partículas 2D (para tooltips; não interfere na simulação 3D)
+      class Particle2D {
+        constructor(x, y) {
+          this.x = x !== undefined ? x : Math.random() * bgCanvas.width;
+          this.y = y !== undefined ? y : Math.random() * bgCanvas.height;
+          this.size = Math.random() * (config.maxSize - config.minSize) + config.minSize;
+          if (forcedScenario) {
+            this.systemType = forcedScenario;
+            this.speedX = (Math.random() - 0.5) * scenarioConfigs[forcedScenario].particleSpeed;
+            this.speedY = (Math.random() - 0.5) * scenarioConfigs[forcedScenario].particleSpeed;
+            const alpha = Math.random() * 0.8 + 0.2;
+            this.color = `rgba(${scenarioConfigs[forcedScenario].r}, ${scenarioConfigs[forcedScenario].g}, ${scenarioConfigs[forcedScenario].b}, ${alpha})`;
+          } else {
+            this.systemType = systems[Math.floor(Math.random() * systems.length)];
+            this.speedX = (Math.random() - 0.5) * config.particleSpeed;
+            this.speedY = (Math.random() - 0.5) * config.particleSpeed;
+            const alpha = Math.random() * 0.8 + 0.2;
+            const randomSystem = systems[Math.floor(Math.random() * systems.length)];
+            const sc = scenarioConfigs[randomSystem];
+            this.color = `rgba(${sc.r}, ${sc.g}, ${sc.b}, ${alpha})`;
+          }
+          this.connections = [];
+          this.life = Math.floor(Math.random() * (config.maxLife - config.minLife)) + config.minLife;
+        }
+        update() {
+          this.x += this.speedX;
+          this.y += this.speedY;
+          this.life--;
+          if (this.x < 0 || this.x > bgCanvas.width) this.speedX = -this.speedX;
+          if (this.y < 0 || this.y > bgCanvas.height) this.speedY = -this.speedY;
+        }
+        fuseWith(other) {
+          const newX = (this.x + other.x) / 2;
+          const newY = (this.y + other.y) / 2;
+          const newSpeedX = (this.speedX + other.speedX) / 2;
+          const newSpeedY = (this.speedY + other.speedY) / 2;
+          const newSize = ((this.size + other.size) / 2) * 1.2;
+          const child = new Particle2D(newX, newY);
+          child.speedX = newSpeedX;
+          child.speedY = newSpeedY;
+          child.size = newSize;
+          const alpha = Math.random() * 0.8 + 0.2;
+          if (forcedScenario) {
+            child.color = `rgba(${scenarioConfigs[forcedScenario].r}, ${scenarioConfigs[forcedScenario].g}, ${scenarioConfigs[forcedScenario].b}, ${alpha})`;
+            child.systemType = forcedScenario;
+          } else {
+            const randomSystem = systems[Math.floor(Math.random() * systems.length)];
+            const sc = scenarioConfigs[randomSystem];
+            child.color = `rgba(${sc.r}, ${sc.g}, ${sc.b}, ${alpha})`;
+            child.systemType = randomSystem;
+          }
+          return child;
+        }
+        draw() {
+          bgCtx.beginPath();
+          bgCtx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+          bgCtx.fillStyle = this.color;
+          bgCtx.shadowBlur = 2;
+          bgCtx.shadowColor = this.color;
+          bgCtx.fill();
+          bgCtx.font = "10px Inter";
+          bgCtx.fillStyle = "#ffffff";
+          bgCtx.fillText(this.systemType, this.x + 5, this.y - 5);
+        }
+      }
+
+      let particles2D = [];
+      function initParticles2D(forcedSystem) {
+        forcedScenario = forcedSystem || null;
+        if (forcedScenario) {
+          config.particleSpeed = scenarioConfigs[forcedScenario].particleSpeed;
+          config.connectionDistance = scenarioConfigs[forcedScenario].connectionDistance;
+          config.fusionDistance = scenarioConfigs[forcedSystem].fusionDistance;
+        }
+        particles2D = [];
+        for (let i = 0; i < config.particleCount; i++) {
+          const p = new Particle2D();
+          if (forcedScenario) { p.systemType = forcedScenario; }
+          particles2D.push(p);
+        }
+      }
+      initParticles2D();
+
+      function drawZones() {
+        const zoneWidth = bgCanvas.width / 3;
+        const zoneHeight = 100;
+        const zones = ["QuantumHash", "QuantumNFT", "QuantumArbitrage"];
+        zones.forEach((zone, index) => {
+          bgCtx.save();
+          bgCtx.strokeStyle = "rgba(255,255,255,0.3)";
+          bgCtx.lineWidth = 2;
+          bgCtx.strokeRect(index * zoneWidth, 0, zoneWidth, zoneHeight);
+          bgCtx.font = "16px Inter";
+          bgCtx.fillStyle = "#ffffff";
+          bgCtx.fillText(zone, index * zoneWidth + 10, 30);
+          bgCtx.restore();
+        });
+      }
+
+      function animateBg() {
+        bgCtx.fillStyle = "rgba(0, 0, 0, 0.15)";
+        bgCtx.fillRect(0, 0, bgCanvas.width, bgCanvas.height);
+        let newParticles = [];
+        for (let i = 0; i < particles2D.length; i++) {
+          const p = particles2D[i];
+          if (!p) continue;
+          if (p.life <= 0) { particles2D[i] = null; continue; }
+          p.update();
+          p.draw();
+          p.connections = [];
+          for (let j = i + 1; j < particles2D.length; j++) {
+            const other = particles2D[j];
+            if (!other) continue;
+            const dx = other.x - p.x;
+            const dy = other.y - p.y;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+            if (dist < config.connectionDistance) {
+              p.connections.push(other);
+              if (dist < config.fusionDistance && Math.random() > 0.9995) {
+                const child = p.fuseWith(other);
+                particles2D[i] = null;
+                particles2D[j] = null;
+                newParticles.push(child);
+              }
+            }
+          }
+          p.connections.forEach(conn => {
+            bgCtx.beginPath();
+            bgCtx.moveTo(p.x, p.y);
+            bgCtx.lineTo(conn.x, conn.y);
+            const dist = Math.sqrt((conn.x - p.x) ** 2 + (conn.y - p.y) ** 2);
+            const alpha = 0.8 - dist / (config.connectionDistance * 1.2);
+            bgCtx.strokeStyle = `rgba(102, 252, 241, ${Math.max(alpha, 0)})`;
+            bgCtx.lineWidth = 1;
+            bgCtx.stroke();
+          });
+        }
+        particles2D = particles2D.filter(p => p !== null).concat(newParticles);
+        drawZones();
+        requestAnimationFrame(animateBg);
+      }
+      animateBg();
+
+      /************************************
+       * SIMULAÇÃO 3D – QuantumNFT (MODO PRINCIPAL)
+       ************************************/
+      const threeContainer = document.getElementById("threeContainer");
+      
+      // Parâmetros dos recipientes e do tubo
+      const roomWidth = 400;
+      const roomHeight = 300;
+      const roomDepth = 200;
+      const roomMargin = 20;  // margem interna das caixas
+      const fusionThreshold = 30; // Distância para fusão de NFTs
+      const leftRoomCenter = new THREE.Vector3(-250, 0, 0);
+      const rightRoomCenter = new THREE.Vector3(250, 0, 0);
+      const tubeXMin = -50;
+      const tubeXMax = 50;
+      
+      // Função para criar uma caixa (recipiente)
+      function createRoomBox(center, width, height, depth) {
+        const geometry = new THREE.BoxGeometry(width, height, depth);
+        const material = new THREE.MeshBasicMaterial({
+          color: 0xffffff,
+          wireframe: true,
+          transparent: true,
+          opacity: 0.3
+        });
+        const box = new THREE.Mesh(geometry, material);
+        box.position.copy(center);
+        return box;
+      }
+      
+      // Função para criar um tubo entre dois pontos
+      function createTube(from, to, radius, radialSegments) {
+        const path = new THREE.LineCurve3(from, to);
+        const geometry = new THREE.TubeGeometry(path, 20, radius, radialSegments, false);
+        const material = new THREE.MeshBasicMaterial({
+          color: 0xffffff,
+          wireframe: true,
+          transparent: true,
+          opacity: 0.3
+        });
+        return new THREE.Mesh(geometry, material);
+      }
+      
+      // Função para criar um NFT 3D
+      function createNFT(color) {
+        const nft = new THREE.Group();
+        nft.isNFT = true;
+        let membraneColor;
+        if (color === "red") {
+          membraneColor = 0xff0000;
+        } else if (color === "blue") {
+          membraneColor = 0x0000ff;
+        } else {
+          membraneColor = 0x00ff00; // verde para filhos
+        }
+        const outerGeometry = new THREE.DodecahedronGeometry(10, 0);
+        const outerMaterial = new THREE.MeshPhongMaterial({
+          color: membraneColor,
+          transparent: true,
+          opacity: 0.3,
+          side: THREE.DoubleSide
+        });
+        const outerMesh = new THREE.Mesh(outerGeometry, outerMaterial);
+        nft.add(outerMesh);
+        nft.userData.outerMesh = outerMesh;
+        const innerGeometry = new THREE.DodecahedronGeometry(5, 0);
+        const innerMaterial = new THREE.MeshPhongMaterial({
+          color: 0xffffff,
+          wireframe: true
+        });
+        const innerMesh = new THREE.Mesh(innerGeometry, innerMaterial);
+        innerMesh.position.set(0, 0, 0);
+        nft.add(innerMesh);
+        nft.userData.innerMesh = innerMesh;
+        const nucleus = new THREE.Mesh(
+          new THREE.SphereGeometry(0.75, 16, 16),
+          new THREE.MeshPhongMaterial({ color: 0xffffff })
+        );
+        nucleus.position.set(0, 0, 0);
+        nft.add(nucleus);
+        const freeParticles = [];
+        const orbitRadius = 3;
+        const orbitSpeed = 0.005;
+        const offsets = [0, 2 * Math.PI / 3, 4 * Math.PI / 3];
+        nft.userData.orbitAngle = 0;
+        nft.userData.orbitSpeed = orbitSpeed;
+        offsets.forEach(offset => {
+          const p = new THREE.Mesh(
+            new THREE.SphereGeometry(0.5, 16, 16),
+            new THREE.MeshPhongMaterial({ color: 0xAAAAAA })
+          );
+          const angle = nft.userData.orbitAngle + offset;
+          const x = orbitRadius * Math.cos(angle);
+          const y = orbitRadius * Math.sin(angle);
+          p.position.set(x, y, 0);
+          p.userData.velocity = new THREE.Vector3(0, 0, 0);
+          freeParticles.push(p);
+          nft.add(p);
+        });
+        nft.userData.freeParticles = freeParticles;
+        nft.userData.vx = 0;
+        nft.userData.vy = 0;
+        nft.userData.rotationSpeedOuter = 0.005;
+        nft.userData.isChild = false;
+        return nft;
+      }
+      
+      // Função para criar um NFT filho (resultado da fusão)
+      function createChildNFT(nftA, nftB) {
+        const pos = new THREE.Vector3().addVectors(nftA.position, nftB.position).multiplyScalar(0.5);
+        const vx = (nftA.userData.vx + nftB.userData.vx) / 2;
+        const vy = (nftA.userData.vy + nftB.userData.vy) / 2;
+        const childNFT = createNFT("green");
+        childNFT.position.copy(pos);
+        childNFT.userData.vx = vx;
+        childNFT.userData.vy = vy;
+        childNFT.userData.isChild = true;
+        childNFT.scale.set(0.5, 0.5, 0.5);
+        childNFT.userData.growthRate = 0.002;
+        childNFT.userData.lifeTime = 5000;
+        childNFT.userData.birthTime = Date.now();
+        return childNFT;
+      }
+      
+      // Variável global para armazenar os NFTs 3D e controlar a fusão
+      let nftGroup3D;
+      let fusionInProgress = true;
+      
+      /************************************
+       * INICIALIZAÇÃO DA CENA 3D – QUANTUMNFT
+       ************************************/
+      function initThreeNFT() {
+        setScenario("QuantumNFT");
+        forcedScenario = "QuantumNFT";
+        bgCanvas.style.display = "none";
+        document.getElementById("threeContainer").style.display = "block";
+        
+        const scene3D = new THREE.Scene();
+        const camera3D = new THREE.PerspectiveCamera(75, threeContainer.clientWidth / threeContainer.clientHeight, 0.1, 1000);
+        camera3D.position.z = 100;
+        const renderer3D = new THREE.WebGLRenderer({ alpha: true, antialias: true });
+        renderer3D.setSize(threeContainer.clientWidth, threeContainer.clientHeight);
+        threeContainer.innerHTML = "";
+        threeContainer.appendChild(renderer3D.domElement);
+        
+        // Luz ambiente e pontual
+        scene3D.add(new THREE.AmbientLight(0xffffff, 0.5));
+        const pointLight3D = new THREE.PointLight(0xffffff, 1);
+        pointLight3D.position.set(50, 50, 50);
+        scene3D.add(pointLight3D);
+        
+        // Cria os recipientes (caixas) e o tubo
+        const leftRoom = createRoomBox(leftRoomCenter, roomWidth, roomHeight, roomDepth);
+        scene3D.add(leftRoom);
+        const rightRoom = createRoomBox(rightRoomCenter, roomWidth, roomHeight, roomDepth);
+        scene3D.add(rightRoom);
+        const tube = createTube(new THREE.Vector3(tubeXMin, 0, 0), new THREE.Vector3(tubeXMax, 0, 0), 20, 8);
+        scene3D.add(tube);
+        
+        // Grupo para armazenar os NFTs
+        nftGroup3D = new THREE.Group();
+        scene3D.add(nftGroup3D);
+        
+        // Limites internos de cada caixa
+        const leftMinX = leftRoomCenter.x - roomWidth/2 + roomMargin;
+        const leftMaxX = leftRoomCenter.x + roomWidth/2 - roomMargin;
+        const rightMinX = rightRoomCenter.x - roomWidth/2 + roomMargin;
+        const rightMaxX = rightRoomCenter.x + roomWidth/2 - roomMargin;
+        const minY = -roomHeight/2 + roomMargin;
+        const maxY = roomHeight/2 - roomMargin;
+        
+        // Cria os NFTs pais: 
+        // – NFTs azuis (origem) são colocados na caixa esquerda.
+        // – NFTs vermelhos são colocados na caixa direita.
+        const colors = ["blue", "red"];
+        const initialNFTCount = 10;
+        for (let i = 0; i < initialNFTCount; i++) {
+          const col = colors[i % 2];
+          const nft = createNFT(col);
+          if (col === "blue") {
+            nft.position.x = Math.random() * (leftMaxX - leftMinX) + leftMinX;
+          } else {
+            nft.position.x = Math.random() * (rightMaxX - rightMinX) + rightMinX;
+          }
+          nft.position.y = Math.random() * (maxY - minY) + minY;
+          nft.position.z = 0;
+          nft.userData.vx = (Math.random() - 0.5) * 0.5;
+          nft.userData.vy = (Math.random() - 0.5) * 0.5;
+          nftGroup3D.add(nft);
+        }
+        
+        /***** FUNÇÃO DE FUSÃO (criação de NFT filho) *****/
+        function processFusion() {
+          if (nftGroup3D.children.length > 2) {
+            for (let i = 0; i < nftGroup3D.children.length; i++) {
+              for (let j = i + 1; j < nftGroup3D.children.length; j++) {
+                const nftA = nftGroup3D.children[i];
+                const nftB = nftGroup3D.children[j];
+                const d = nftA.position.distanceTo(nftB.position);
+                // Se os NFTs pais estiverem próximos e tiverem cores de membrana diferentes:
+                if (d < fusionThreshold &&
+                    nftA.userData.outerMesh.material.color.getHex() !== nftB.userData.outerMesh.material.color.getHex()) {
+                  const childNFT = createChildNFT(nftA, nftB);
+                  nftGroup3D.remove(nftA);
+                  nftGroup3D.remove(nftB);
+                  nftGroup3D.add(childNFT);
+                  return; // Processa uma fusão por frame
+                }
+              }
+            }
+          }
+        }
+        
+        // Quando restarem 2 NFTs pais, reposiciona-os para o centro do tubo (x entre -50 e 50, y = 0)
+        function repositionToCenter() {
+          if (nftGroup3D.children.length === 2) {
+            nftGroup3D.children.forEach(nft => {
+              nft.position.set(0, 0, 0);
+              nft.userData.vx = 0;
+              nft.userData.vy = 0;
+            });
+            fusionInProgress = false;
+          }
+        }
+        
+        /***** DRAG & DROP 3D (movimento restrito ao plano z = 0) *****/
+        function getNFTGroup(object) {
+          while (object.parent && !object.isNFT) {
+            object = object.parent;
+          }
+          return object;
+        }
+        let selectedNFT3D = null;
+        let dragOffset3D = new THREE.Vector3();
+        const raycaster3D = new THREE.Raycaster();
+        const mouse3D = new THREE.Vector2();
+        function onMouseDown3D(e) {
+          mouse3D.x = (e.clientX / threeContainer.clientWidth) * 2 - 1;
+          mouse3D.y = -(e.clientY / threeContainer.clientHeight) * 2 + 1;
+          raycaster3D.setFromCamera(mouse3D, camera3D);
+          const intersects = raycaster3D.intersectObjects(nftGroup3D.children, true);
+          if (intersects.length > 0) {
+            const group = getNFTGroup(intersects[0].object);
+            if (group) {
+              selectedNFT3D = group;
+              dragOffset3D.copy(selectedNFT3D.position).sub(intersects[0].point);
+            }
+          }
+        }
+        function onMouseMove3D(e) {
+          if (selectedNFT3D) {
+            mouse3D.x = (e.clientX / threeContainer.clientWidth) * 2 - 1;
+            mouse3D.y = -(e.clientY / threeContainer.clientHeight) * 2 + 1;
+            raycaster3D.setFromCamera(mouse3D, camera3D);
+            const plane = new THREE.Plane(new THREE.Vector3(0, 0, 1), 0);
+            const intersectPoint = new THREE.Vector3();
+            raycaster3D.ray.intersectPlane(plane, intersectPoint);
+            if (intersectPoint) {
+              selectedNFT3D.position.copy(intersectPoint.add(dragOffset3D));
+            }
+          }
+        }
+        function onMouseUp3D() { selectedNFT3D = null; }
+        threeContainer.addEventListener("mousedown", onMouseDown3D, false);
+        threeContainer.addEventListener("mousemove", onMouseMove3D, false);
+        threeContainer.addEventListener("mouseup", onMouseUp3D, false);
+        threeContainer.addEventListener("mouseleave", onMouseUp3D, false);
+        
+        /***** ANIMAÇÃO 3D PRINCIPAL *****/
+        function animate3D() {
+          requestAnimationFrame(animate3D);
+          const time = Date.now();
+          
+          // Durante a fase de fusão ("zoo"), processa fusões até que restem apenas 2 NFTs pais
+          if (fusionInProgress) {
+            if (nftGroup3D.children.length > 2) {
+              processFusion();
+            } else if (nftGroup3D.children.length === 2) {
+              repositionToCenter();
+            }
+          }
+          
+          // Para cada NFT, atualiza rotação, órbita interna e movimento com restrição aos limites do seu recipiente
+          nftGroup3D.children.forEach(nft => {
+            // Se for NFT filho, faz-o crescer até escala 1 e, depois de um tempo, remove-o
+            if (nft.userData.isChild) {
+              if (nft.scale.x < 1) {
+                nft.scale.multiplyScalar(1 + nft.userData.growthRate);
+                if (nft.scale.x > 1) {
+                  nft.scale.set(1, 1, 1);
+                }
+              }
+              if (Date.now() - nft.userData.birthTime > nft.userData.lifeTime) {
+                nftGroup3D.remove(nft);
+                return;
+              }
+            }
+            nft.rotation.x += nft.userData.rotationSpeedOuter;
+            nft.rotation.y += nft.userData.rotationSpeedOuter;
+            nft.rotation.z += 0.001;
+            
+            // Atualiza a órbita interna dos free particles
+            if (nft.userData.freeParticles && nft.userData.freeParticles.length === 3) {
+              nft.userData.orbitAngle += nft.userData.orbitSpeed;
+              const baseAngle = nft.userData.orbitAngle;
+              const orbitRadius = 3;
+              const offsets = [0, 2 * Math.PI / 3, 4 * Math.PI / 3];
+              nft.userData.freeParticles.forEach((p, index) => {
+                const targetX = orbitRadius * Math.cos(baseAngle + offsets[index]);
+                const targetY = orbitRadius * Math.sin(baseAngle + offsets[index]);
+                p.position.lerp(new THREE.Vector3(targetX, targetY, 0), 0.1);
+              });
+            }
+            
+            // Atualiza a posição global e restringe o movimento conforme o recipiente:
+            nft.position.x += nft.userData.vx;
+            nft.position.y += nft.userData.vy;
+            
+            // Limita horizontalmente: 
+            // – Se NFT é pai azul (membrana azul, 0x0000ff), ele deve permanecer na caixa esquerda (x de leftRoomCenter - roomWidth/2 + roomMargin até tubeXMin)
+            // – Se NFT é pai vermelho (membrana vermelha, 0xff0000), ele deve permanecer na caixa direita (x de tubeXMax até rightRoomCenter + roomWidth/2 - roomMargin)
+            // – NFTs filhos (verde, 0x00ff00) permanecem no tubo (x entre tubeXMin e tubeXMax)
+            if (nft.userData.outerMesh.material.color.getHex() === 0x0000ff) { // Azul
+              const leftLimit = leftRoomCenter.x - roomWidth/2 + roomMargin;
+              if (nft.position.x < leftLimit) {
+                nft.position.x = leftLimit;
+                nft.userData.vx = Math.abs(nft.userData.vx);
+              }
+              if (nft.position.x > tubeXMin) {
+                // Ao entrar no tubo, pode manter sua cor ou ser convertida; neste exemplo, optamos por manter
+                nft.position.x = tubeXMin;
+                nft.userData.vx = 0;
+              }
+            } else if (nft.userData.outerMesh.material.color.getHex() === 0xff0000) { // Vermelho
+              const rightLimit = rightRoomCenter.x + roomWidth/2 - roomMargin;
+              if (nft.position.x > rightLimit) {
+                nft.position.x = rightLimit;
+                nft.userData.vx = -Math.abs(nft.userData.vx);
+              }
+              if (nft.position.x < tubeXMax) {
+                nft.position.x = tubeXMax;
+                nft.userData.vx = 0;
+              }
+            } else if (nft.userData.outerMesh.material.color.getHex() === 0x00ff00) { // Verde (filho)
+              if (nft.position.x < tubeXMin) {
+                nft.position.x = tubeXMin;
+                nft.userData.vx = Math.abs(nft.userData.vx);
+              }
+              if (nft.position.x > tubeXMax) {
+                nft.position.x = tubeXMax;
+                nft.userData.vx = -Math.abs(nft.userData.vx);
+              }
+            }
+            
+            // Limita verticalmente (para ambas as caixas)
+            const minY = -roomHeight/2 + roomMargin;
+            const maxY = roomHeight/2 - roomMargin;
+            if (nft.position.y < minY) {
+              nft.position.y = minY;
+              nft.userData.vy = Math.abs(nft.userData.vy);
+            }
+            if (nft.position.y > maxY) {
+              nft.position.y = maxY;
+              nft.userData.vy = -Math.abs(nft.userData.vy);
+            }
+          });
+          
+          // Se houver apenas 2 NFTs pais, aplica atração mútua para que se aproximem (para fusão)
+          if (nftGroup3D.children.length === 2) {
+            const nft1 = nftGroup3D.children[0];
+            const nft2 = nftGroup3D.children[1];
+            const dx = nft2.position.x - nft1.position.x;
+            const dy = nft2.position.y - nft1.position.y;
+            const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+            const attractionStrength = 0.001;
+            const ax = (dx/dist) * attractionStrength;
+            const ay = (dy/dist) * attractionStrength;
+            nft1.userData.vx += ax;
+            nft1.userData.vy += ay;
+            nft2.userData.vx -= ax;
+            nft2.userData.vy -= ay;
+          }
+          
+          function detectCollisions3D() {
+            const collisionThreshold = 150;
+            const nfts = nftGroup3D.children;
+            for (let i = 0; i < nfts.length; i++) {
+              for (let j = i + 1; j < nfts.length; j++) {
+                const nftA = nfts[i];
+                const nftB = nfts[j];
+                const d = nftA.position.distanceTo(nftB.position);
+                if (d < collisionThreshold) {
+                  nftA.userData.outerMesh.material.color.set(0xff0000);
+                  nftB.userData.outerMesh.material.color.set(0xff0000);
+                  nftA.userData.collided = true;
+                  nftB.userData.collided = true;
+                }
+              }
+            }
+          }
+          detectCollisions3D();
+          renderer3D.render(scene3D, camera3D);
+          if (fusionInProgress && nftGroup3D.children.length > 2) {
+            processFusion();
+          }
+        }
+        animate3D();
+      }
+      
+      /************************************
+       * BOTÕES INTERATIVOS – AÇÕES BÁSICAS
+       ************************************/
+      // Exibe informações dos NFTs no painel lateral
+      document.getElementById("btnInfo").addEventListener("click", () => {
+        const detailsDiv = document.getElementById("nftDetails");
+        if (nftGroup3D) {
+          let infoHTML = `<p><strong>NFTs na cena:</strong> ${nftGroup3D.children.length}</p>`;
+          nftGroup3D.children.forEach((nft, index) => {
+            const colHex = nft.userData.outerMesh.material.color.getHexString();
+            infoHTML += `<p>NFT ${index + 1}: cor = #${colHex}, posição = (${nft.position.x.toFixed(2)}, ${nft.position.y.toFixed(2)})</p>`;
+          });
+          detailsDiv.innerHTML = infoHTML;
+          detailsDiv.style.display = "block";
+        } else {
+          console.log("Nenhum NFT 3D ativo.");
+        }
+      });
+      
+      // Inverte as velocidades de todos os NFTs (ação repetida)
+      document.getElementById("btnAction").addEventListener("click", () => {
+        if (nftGroup3D) {
+          nftGroup3D.children.forEach(nft => {
+            nft.userData.vx = -nft.userData.vx;
+            nft.userData.vy = -nft.userData.vy;
+          });
+          console.log("Velocidades invertidas.");
+        }
+      });
+      
+      /************************************
+       * FUNÇÃO PARA ALTERNAR MODOS (2D vs 3D)
+       ************************************/
+      function setScenario(scenario) {
+        if (scenario !== "QuantumNFT") {
+          forcedScenario = scenario;
+          initParticles2D(scenario);
+          bgCanvas.style.display = "block";
+          document.getElementById("threeContainer").style.display = "none";
+        }
+      }
+      document.getElementById("btnHash").addEventListener("click", () => { setScenario("QuantumHash"); });
+      document.getElementById("btnArb").addEventListener("click", () => { setScenario("QuantumArbitrage"); });
+      document.getElementById("btnNFT").addEventListener("click", () => {
+        forcedScenario = "QuantumNFT";
+        bgCanvas.style.display = "none";
+        document.getElementById("threeContainer").style.display = "block";
+        initThreeNFT();
+      });
+      
+      /************************************
+       * TOOLTIP INTERATIVO – SIMULAÇÃO 2D
+       ************************************/
+      bgCanvas.addEventListener("mousemove", (e) => {
+        const mouseX = e.clientX;
+        const mouseY = e.clientY;
+        let found = false;
+        particles2D.forEach(p => {
+          if (p && Math.hypot(p.x - mouseX, p.y - mouseY) < 10) {
+            tooltipElem.style.display = "block";
+            tooltipElem.style.left = mouseX + 10 + "px";
+            tooltipElem.style.top = mouseY + 10 + "px";
+            tooltipElem.innerHTML = `<strong>${p.systemType}</strong><br>Speed: ${p.speedX.toFixed(2)}, ${p.speedY.toFixed(2)}<br>Life: ${p.life}`;
+            found = true;
+          }
+        });
+        if (!found) { tooltipElem.style.display = "none"; }
+      });
+      
+      // Inicia a simulação 2D (para tooltips)
+      animateBg();
+    });
+  </script>
+</body>
+</html>

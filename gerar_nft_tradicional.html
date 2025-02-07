@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Gerar Imagem NFT Tradicional</title>
+  <style>
+    body {
+      background: #111;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      margin: 0;
+      color: #fff;
+      font-family: Arial, sans-serif;
+    }
+    canvas {
+      border: 2px solid #fff;
+    }
+    button {
+      margin-top: 20px;
+      padding: 10px 20px;
+      font-size: 16px;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+  <canvas id="nftCanvas" width="300" height="400"></canvas>
+  <button id="saveButton">Salvar como PNG</button>
+
+  <script>
+    const canvas = document.getElementById('nftCanvas');
+    const ctx = canvas.getContext('2d');
+
+    // Cria um fundo com gradiente para transmitir seriedade e tecnologia estática
+    const grad = ctx.createLinearGradient(0, 0, 0, canvas.height);
+    grad.addColorStop(0, "#333");
+    grad.addColorStop(1, "#111");
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // Desenha uma moldura simples (representando que as possibilidades são limitadas)
+    ctx.strokeStyle = "#ff0000";
+    ctx.lineWidth = 8;
+    ctx.strokeRect(20, 20, canvas.width - 40, canvas.height - 40);
+
+    // Adiciona um ícone ou símbolo simples (aqui usamos um círculo simples)
+    ctx.beginPath();
+    ctx.arc(canvas.width / 2, canvas.height / 3, 40, 0, Math.PI * 2);
+    ctx.fillStyle = "#555";
+    ctx.fill();
+    ctx.strokeStyle = "#ff0000";
+    ctx.lineWidth = 4;
+    ctx.stroke();
+
+    // Texto “NFT Tradicional” centralizado
+    ctx.font = "bold 24px Arial";
+    ctx.fillStyle = "#fff";
+    ctx.textAlign = "center";
+    ctx.fillText("NFT Tradicional", canvas.width / 2, canvas.height * 0.7);
+
+    // Opcional: texto explicativo indicando que as possibilidades são limitadas
+    ctx.font = "16px Arial";
+    ctx.fillStyle = "#aaa";
+    ctx.fillText("Estático e Limitado", canvas.width / 2, canvas.height * 0.8);
+
+    // Botão para salvar a imagem como PNG
+    document.getElementById('saveButton').addEventListener('click', function() {
+      const dataURL = canvas.toDataURL('image/png');
+      const a = document.createElement('a');
+      a.href = dataURL;
+      a.download = 'nft_tradicional.png';
+      a.click();
+    });
+  </script>
+</body>
+</html>
